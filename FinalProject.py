@@ -38,7 +38,6 @@ amazon_csv = find_csv(path_a)
 print("\nFound food CSV", food_csv)
 print("Found Amazon CSV", amazon_csv)
 
-# IMPORTANT: Amazon file is semicolon-separated
 food_df = pd.read_csv(food_csv)
 amazon_df = pd.read_csv(amazon_csv, sep=";")
 
@@ -53,36 +52,31 @@ print(amazon_df.head(3))
 food_df.columns = [c.strip().lower().replace(" ", "_") for c in food_df.columns]
 amazon_df.columns = [c.strip().lower().replace(" ", "_") for c in amazon_df.columns]
 
-# --- Normalize dates/months and prices so merge/plots don't break ---
 
 def ensure_month_column(df):
-    # If there's already a 'month' column, try to parse it
+    # Already a 'month' column parse it
     if "month" in df.columns:
         df["month"] = pd.to_datetime(df["month"], errors="coerce")
-    # If there is a generic 'date' column
+    # If a 'date' column
     elif "date" in df.columns:
         df["month"] = pd.to_datetime(df["date"], errors="coerce")
-    # Amazon-specific: sometimes only 'date_first_available'
+    
     elif "date_first_available" in df.columns:
         df["month"] = pd.to_datetime(df["date_first_available"], errors="coerce")
     else:
         return df
 
-    # Normalize to month start (e.g., 2020-06-01)
+    # Normalize to month start
     df["month"] = df["month"].dt.to_period("M").dt.to_timestamp()
     return df
 
-# If amazon has a 'date_first_available' column, create a 'date' for consistency
 if "date_first_available" in amazon_df.columns and "date" not in amazon_df.columns:
     amazon_df["date"] = pd.to_datetime(amazon_df["date_first_available"], errors="coerce")
 
-# Apply month normalization
+# month normalization
 food_df = ensure_month_column(food_df)
 amazon_df = ensure_month_column(amazon_df)
 
-# ---- Price cleanup ----
-
-# Amazon: use 'sale_price' as numeric 'price' if present
 if "sale_price" in amazon_df.columns and "price" not in amazon_df.columns:
     amazon_df["price"] = (
         amazon_df["sale_price"]
@@ -91,12 +85,10 @@ if "sale_price" in amazon_df.columns and "price" not in amazon_df.columns:
     )
     amazon_df["price"] = pd.to_numeric(amazon_df["price"], errors="coerce")
 
-# Food: ensure price is numeric if present
 if "price" in food_df.columns:
     food_df["price"] = pd.to_numeric(food_df["price"], errors="coerce")
 
-# Drop rows that are missing the key columns we need,
-# but ONLY if those columns actually exist.
+# Drop rows that are missing 
 if "month" in amazon_df.columns:
     if "price" in amazon_df.columns:
         amazon_df = amazon_df.dropna(subset=["month", "price"])
